@@ -143,6 +143,7 @@ class Bombarder(Env):
         generate_map(self.state)
 
     def step(self, action):
+        pygame.event.pump()
         info = {}
         reward = 0.1
 
