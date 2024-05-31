@@ -1,8 +1,9 @@
 import pygame
 import random
 from gymnasium import Env
-from gymnasium import spaces 
+from gymnasium import spaces
 import numpy as np
+from copy import copy, deepcopy
 
 from enums.power_up_type import PowerUpType
 from enums.actions import Actions
@@ -41,6 +42,7 @@ ENEMY_3_ALG = Algorithm.DIJKSTRA
 SHOW_PATH = False
 SURFACE = pygame.display.set_mode(WINDOW_SIZE)
 FPSCLOCK = pygame.time.Clock()
+
 
 class Bombarder(Env):
 
@@ -108,58 +110,68 @@ class Bombarder(Env):
         bomb3_img = pygame.transform.scale(bomb3_img, (self.scale, self.scale))
 
         explosion1_img = pygame.image.load('images/explosion/1.png')
-        explosion1_img = pygame.transform.scale(explosion1_img, (self.scale, self.scale))
+        explosion1_img = pygame.transform.scale(
+            explosion1_img, (self.scale, self.scale))
 
         explosion2_img = pygame.image.load('images/explosion/2.png')
-        explosion2_img = pygame.transform.scale(explosion2_img, (self.scale, self.scale))
+        explosion2_img = pygame.transform.scale(
+            explosion2_img, (self.scale, self.scale))
 
         explosion3_img = pygame.image.load('images/explosion/3.png')
-        explosion3_img = pygame.transform.scale(explosion3_img, (self.scale, self.scale))
+        explosion3_img = pygame.transform.scale(
+            explosion3_img, (self.scale, self.scale))
 
         self.terrain_images = [grass_img, block_img, box_img, grass_img]
         self.bomb_images = [bomb1_img, bomb2_img, bomb3_img]
-        self.explosion_images = [explosion1_img, explosion2_img, explosion3_img]
+        self.explosion_images = [explosion1_img,
+                                 explosion2_img, explosion3_img]
 
         power_up_bomb_img = pygame.image.load('images/power_up/bomb.png')
-        power_up_bomb_img = pygame.transform.scale(power_up_bomb_img, (self.scale, self.scale))
+        power_up_bomb_img = pygame.transform.scale(
+            power_up_bomb_img, (self.scale, self.scale))
 
         power_up_fire_img = pygame.image.load('images/power_up/fire.png')
-        power_up_fire_img = pygame.transform.scale(power_up_fire_img, (self.scale, self.scale))
+        power_up_fire_img = pygame.transform.scale(
+            power_up_fire_img, (self.scale, self.scale))
 
         self.power_ups_images = [power_up_bomb_img, power_up_fire_img]
         self.state = [row[:] for row in GRID_BASE]
 
-        self.observation_space = spaces.Box(0, 3, [169,], dtype=np.int64)
+        self.observation_space = spaces.Box(0, 3, [169, ], dtype=np.int64)
         self.action_space = spaces.Discrete(5)
 
         generate_map(self.state)
-
 
     def step(self, action):
         info = {}
         reward = 0.1
 
         for en in self.enemy_list:
-            en.make_move(self.state, self.bombs, self.explosions, self.ene_blocks, self.power_ups)
+            en.make_move(self.state, self.bombs, self.explosions,
+                         self.ene_blocks, self.power_ups)
 
         if self.player.life:
             temp = self.player.direction
             movement = False
             if action == 1:
                 temp = 0
-                self.player.move(0, 1, self.state, self.ene_blocks, self.power_ups)
+                self.player.move(0, 1, self.state,
+                                 self.ene_blocks, self.power_ups)
                 movement = True
             elif action == 3:
                 temp = 1
-                self.player.move(1, 0, self.state, self.ene_blocks, self.power_ups)
+                self.player.move(1, 0, self.state,
+                                 self.ene_blocks, self.power_ups)
                 movement = True
             elif action == 0:
                 temp = 2
-                self.player.move(0, -1, self.state, self.ene_blocks, self.power_ups)
+                self.player.move(0, -1, self.state,
+                                 self.ene_blocks, self.power_ups)
                 movement = True
             elif action == 2:
                 temp = 3
-                self.player.move(-1, 0, self.state, self.ene_blocks, self.power_ups)
+                self.player.move(-1, 0, self.state,
+                                 self.ene_blocks, self.power_ups)
                 movement = True
             if temp != self.player.direction:
                 self.player.frame = 0
@@ -192,7 +204,10 @@ class Bombarder(Env):
         self.update_bombs(dt)
         self.cumulative_reward = reward
 
-        return np.array(self.state).flatten(), self.cumulative_reward, self.done, False, info
+        updated_state = deepcopy(self.state)
+        updated_state[self.player.pos_x//4][self.player.pos_y//4] = 5
+
+        return np.array(updated_state).flatten(), self.cumulative_reward, self.done, False, info
 
     def reset(self, *, seed=None, options=None):
         self.seed = seed
@@ -205,24 +220,28 @@ class Bombarder(Env):
         self.surface.fill(BACKGROUND_COLOR)
         for i in range(len(self.state)):
             for j in range(len(self.state[i])):
-                self.surface.blit(self.terrain_images[self.state[i][j]], (i * self.tile_size, j * self.tile_size, self.tile_size, self.tile_size))
+                self.surface.blit(self.terrain_images[self.state[i][j]], (
+                    i * self.tile_size, j * self.tile_size, self.tile_size, self.tile_size))
 
         for pu in self.power_ups:
-            self.surface.blit(self.power_ups_images[pu.type.value], (pu.pos_x * self.tile_size, pu.pos_y * self.tile_size, self.tile_size, self.tile_size))
+            self.surface.blit(self.power_ups_images[pu.type.value], (
+                pu.pos_x * self.tile_size, pu.pos_y * self.tile_size, self.tile_size, self.tile_size))
 
         for x in self.bombs:
-            self.surface.blit(self.bomb_images[x.frame], (x.pos_x * self.tile_size, x.pos_y * self.tile_size, self.tile_size, self.tile_size))
+            self.surface.blit(self.bomb_images[x.frame], (
+                x.pos_x * self.tile_size, x.pos_y * self.tile_size, self.tile_size, self.tile_size))
 
         for y in self.explosions:
             for x in y.sectors:
-                self.surface.blit(self.explosion_images[y.frame], (x[0] * self.tile_size, x[1] * self.tile_size, self.tile_size, self.tile_size))
+                self.surface.blit(self.explosion_images[y.frame], (
+                    x[0] * self.tile_size, x[1] * self.tile_size, self.tile_size, self.tile_size))
         if self.player.life:
             self.surface.blit(self.player.animation[self.player.direction][self.player.frame],
-                   (self.player.pos_x * (self.tile_size / 4), self.player.pos_y * (self.tile_size / 4), self.tile_size, self.tile_size))
+                              (self.player.pos_x * (self.tile_size / 4), self.player.pos_y * (self.tile_size / 4), self.tile_size, self.tile_size))
         for en in self.enemy_list:
             if en.life:
                 self.surface.blit(en.animation[en.direction][en.frame],
-                       (en.pos_x * (self.tile_size / 4), en.pos_y * (self.tile_size / 4), self.tile_size, self.tile_size))
+                                  (en.pos_x * (self.tile_size / 4), en.pos_y * (self.tile_size / 4), self.tile_size, self.tile_size))
 
         pygame.display.update()
 

@@ -2,11 +2,11 @@
 from gym_env import Bombarder
 from stable_baselines3 import PPO
 import gymnasium
-env = Bombarder(render_mode="human") 
+env = Bombarder(render_mode="human")
 
 
 model = PPO("MlpPolicy", env, verbose=2)
-model.learn(total_timesteps=30000)
+model.learn(total_timesteps=10000)
 
 vec_env = model.get_env()
 obs = vec_env.reset()

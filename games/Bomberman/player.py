@@ -51,7 +51,6 @@ class Player:
             elif self.pos_y % Player.TILE_SIZE == 3:
                 self.pos_y += 1
             return
-
         # right
         if dx == 1:
             if map[tempx+1][tempy] == 0:
