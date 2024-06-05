@@ -1,3 +1,4 @@
+import math
 import pygame
 import random
 from gymnasium import Env
@@ -14,7 +15,7 @@ from enemy import Enemy
 from enums.algorithm import Algorithm
 from power_up import PowerUp
 
-FPS = 15
+FPS = 30
 BACKGROUND_COLOR = (107, 142, 35)
 GRID_BASE = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
              [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -58,8 +59,9 @@ class Bombarder(Env):
         self.tile_size = TILE_SIZE
         self.scale = TILE_SIZE
         self.done = False
-        self.cumulative_reward = 0.1
+        self.cumulative_reward = 0.0
         self.render_mode = render_mode
+        self.font = pygame.font.SysFont(None, 24)
 
         if ENEMY_1_ALG is not Algorithm.NONE:
             en1 = Enemy(11, 11, ENEMY_1_ALG)
@@ -138,83 +140,142 @@ class Bombarder(Env):
         self.state = [row[:] for row in GRID_BASE]
 
         self.observation_space = spaces.Box(0, 3, [169, ], dtype=np.int64)
-        self.action_space = spaces.Discrete(5)
+        self.action_space = spaces.Discrete(6)
 
         generate_map(self.state)
 
     def step(self, action):
         pygame.event.pump()
         info = {}
-        reward = 0.1
+        reward = 0.0
 
+        standing = True
+        if action != 5:
+            standing = False
+
+        # Update enemies
         for en in self.enemy_list:
             en.make_move(self.state, self.bombs, self.explosions,
                          self.ene_blocks, self.power_ups)
 
+        px = self.player.pos_x//self.player.TILE_SIZE
+        py = self.player.pos_y//self.player.TILE_SIZE
+        # Punish if trapped
+        if self.state[px - 1][py] != 0 and self.state[px + 1][py] != 0 and self.state[px][py - 1] != 0 and self.state[px][py + 1] != 0:
+            reward -= 0.2
+
+        # Bomb vicinity
+        for bomb in self.bombs:
+            distance = math.sqrt((bomb.pos_x-px)**2+(
+                bomb.pos_y-py)**2)
+            if distance > bomb.range:
+                continue
+            if bomb.pos_x == px or bomb.pos_y == py:
+                reward -= 0.5  # Punish for standing on bomb path
+            # else:
+            #     if standing:
+            #         reward += 0.2  # Reward for standing on safety near bomb
+            # if bomb.pos_x == px and bomb.pos_y == py:
+            #     reward -= 1  # Punish for standing on top of the bomb
+
+        # Explosion vicinity
+        for explosion in self.explosions:
+            distance = math.sqrt((explosion.sourceX-px)**2+(
+                explosion.sourceY-py)**2)
+            if distance > explosion.range:
+                continue
+            if explosion.sourceX == px or explosion.sourceY == py:
+                reward -= 0.5  # Punish for staning on explosion path
+            # else:
+            #     if standing:
+            #         reward += 0.2  # Reward for standing on safety near explosion
+
+        # Handle player actions if the player is alive
         if self.player.life:
-            temp = self.player.direction
+
+            enemies_dead = all([not en.life for en in self.enemy_list])
+            if enemies_dead:
+                self.done = True
+
             movement = False
-            if action == 1:
-                temp = 0
-                self.player.move(0, 1, self.state,
-                                 self.ene_blocks, self.power_ups)
-                movement = True
-            elif action == 3:
-                temp = 1
-                self.player.move(1, 0, self.state,
-                                 self.ene_blocks, self.power_ups)
-                movement = True
-            elif action == 0:
-                temp = 2
-                self.player.move(0, -1, self.state,
-                                 self.ene_blocks, self.power_ups)
-                movement = True
-            elif action == 2:
-                temp = 3
-                self.player.move(-1, 0, self.state,
-                                 self.ene_blocks, self.power_ups)
-                movement = True
-            if temp != self.player.direction:
-                self.player.frame = 0
-                self.player.direction = temp
+            direction = self.player.direction
+            if action == 0:  # Move up
+                movement = self.player.move(
+                    0, -1, self.state, self.ene_blocks, self.power_ups)
+                direction = 0
+            elif action == 1:  # Move down
+                movement = self.player.move(
+                    0, 1, self.state, self.ene_blocks, self.power_ups)
+                direction = 1
+            elif action == 2:  # Move left
+                movement = self.player.move(-1, 0, self.state,
+                                            self.ene_blocks, self.power_ups)
+                direction = 2
+            elif action == 3:  # Move right
+                movement = self.player.move(
+                    1, 0, self.state, self.ene_blocks, self.power_ups)
+                direction = 3
+            elif action == 4:  # Plant bomb
+                if self.player.bomb_limit > 0:
+                    temp_bomb = self.player.plant_bomb(self.state)
+                    self.bombs.append(temp_bomb)
+                    self.state[temp_bomb.pos_x][temp_bomb.pos_y] = 3
+                    self.player.bomb_limit -= 1
+                    # reward += 0.1  # Reward for planting a bomb
+
+            self.player.direction = direction
+
+            # Reward for placing all the bombs
+            if self.player.bomb_limit == 0:
+                reward += 0.05
+
             if movement:
-                if self.player.frame == 2:
-                    self.player.frame = 0
-                else:
-                    self.player.frame += 1
+                reward += 0.01  # Small reward for moving
+
+            # Additional rewards or penalties based on power-ups and other factors
+            reward += self.player.num_power_ups * 0.05
+
+            # Reward for killing each enemy
+            reward += (0.25 * self.player.kills)
+
+            # Reward for destroying crates
+            reward += (0.02 * self.player.crates_destroyed)
+            # Punish if enemies are faster at destoying crates
+            # for enemy in self.enemy_list:
+            #     reward -= (0.05 * enemy.crates_destroyed)
         else:
             self.done = True
+            reward -= 1.0  # Penalty for player death
 
-        for enemy in self.enemy_list:
-            if not enemy.life:
-                reward += 0.05
-            else:
-                reward -= enemy.num_power_ups * 0.01
-        reward += self.player.num_power_ups * 0.01
-        if self.player.bomb_limit == 0:
-            reward += 0.02
+        # # Update rewards for enemies
+        # for enemy in self.enemy_list:
+        #     if not enemy.life:
+        #         reward += 0.5  # Reward for each enemy killed
+        #     else:
+        #         reward -= 0.01  # Small penalty for each enemy still alive
 
-        if action == 4:
-            if self.player.bomb_limit > 0 and self.player.life:
-                temp_bomb = self.player.plant_bomb(self.state)
-                self.bombs.append(temp_bomb)
-                self.state[temp_bomb.pos_x][temp_bomb.pos_y] = 3
-                self.player.bomb_limit -= 1
-
-        dt = FPSCLOCK.tick(30)
-        self.update_bombs(dt)
         self.cumulative_reward = reward
 
-        updated_state = deepcopy(self.state)
-        updated_state[self.player.pos_x//4][self.player.pos_y//4] = 5
+        if self.render_mode == "human":
+            self.render()
 
-        return np.array(updated_state).flatten(), self.cumulative_reward, self.done, False, info
+        # Update bombs
+        dt = FPSCLOCK.tick(FPS)
+        self.update_bombs(dt)
+
+        # Update game state
+        updated_state = deepcopy(self.state)
+        updated_state[self.player.pos_x // 4][self.player.pos_y // 4] = 5
+        for explosion in self.explosions:
+            updated_state[explosion.sourceX][explosion.sourceY] = 3
+
+        return np.array(updated_state).flatten(), reward, self.done, False, info
 
     def reset(self, *, seed=None, options=None):
         self.seed = seed
         self.options = options
         info = {}
-        self.__init__()
+        self.__init__(render_mode=self.render_mode)
         return np.array(self.state).flatten(), info
 
     def render(self):
@@ -244,6 +305,10 @@ class Bombarder(Env):
                 self.surface.blit(en.animation[en.direction][en.frame],
                                   (en.pos_x * (self.tile_size / 4), en.pos_y * (self.tile_size / 4), self.tile_size, self.tile_size))
 
+        # Display info on screen
+        reward = self.font.render(
+            f'K:{self.player.kills} C:{self.player.crates_destroyed} P:{self.player.num_power_ups} R:{self.cumulative_reward:6.4f}', True, (255, 0, 0))
+        self.surface.blit(reward, (0, 0))
         pygame.display.update()
 
     def update_bombs(self, dt):

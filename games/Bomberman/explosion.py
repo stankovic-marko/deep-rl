@@ -38,11 +38,14 @@ class Explosion:
 
         for i in self.sectors:
             if map[i[0]][i[1]] == 2:
+                self.bomber.crates_destroyed = self.bomber.crates_destroyed + 1
                 r = random.randint(0, 9)
                 if r == 0:
                     power_ups.append(PowerUp(i[0], i[1], PowerUpType.BOMB))
                 elif r == 1:
                     power_ups.append(PowerUp(i[0], i[1], PowerUpType.FIRE))
+            if map[i[0]][i[1]] == 3:
+                self.bomber.kills = self.bomber.kills + 1
 
             map[i[0]][i[1]] = 0
 
