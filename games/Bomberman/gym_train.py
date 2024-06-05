@@ -19,16 +19,18 @@ class SaveOnBestTrainingRewardCallback(BaseCallback):
 
     def _init_callback(self) -> None:
         # Create folder if needed
+        self.last_saved = 0
         if self.save_path is not None:
             os.makedirs(self.save_path, exist_ok=True)
 
     def _on_step(self) -> bool:
-        if self.n_calls % self.save_freq == 0:
+        if self.n_calls - self.last_saved >= self.save_freq:
             model_path = os.path.join(
-                self.save_path, f'model_with_discrete_{self.n_calls}_steps')
+                self.save_path, f'model_new_obs{self.n_calls}_steps')
             self.model.save(model_path)
             if self.verbose > 0:
                 print(f"Saving model checkpoint to {model_path}")
+            self.last_saved = self.n_calls
         return True
 
 
@@ -44,7 +46,7 @@ if __name__ == "__main__":
     envs = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     save_freq = 100000
-    save_path = './models/'
+    save_path = './models_bomberman/'
     callback = SaveOnBestTrainingRewardCallback(
         save_freq, save_path)
     model = PPO("MlpPolicy", envs, verbose=2, batch_size=128)

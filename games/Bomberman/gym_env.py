@@ -139,7 +139,8 @@ class Bombarder(Env):
         self.power_ups_images = [power_up_bomb_img, power_up_fire_img]
         self.state = [row[:] for row in GRID_BASE]
 
-        self.observation_space = spaces.Box(0, 3, [169, ], dtype=np.int64)
+        self.observation_space = spaces.Box(
+            0, 4, shape=(13, 13), dtype=np.int64)
         self.action_space = spaces.Discrete(6)
 
         generate_map(self.state)
@@ -226,8 +227,12 @@ class Bombarder(Env):
             self.player.direction = direction
 
             # Reward for placing all the bombs
-            if self.player.bomb_limit == 0:
-                reward += 0.05
+            # if self.player.bomb_limit == 0:
+            #     reward += 0.05
+
+            for bomb in self.bombs:
+                if isinstance(bomb.bomber, Player):
+                    reward += 0.025  # Small reward for each bomb placed
 
             if movement:
                 reward += 0.01  # Small reward for moving
@@ -245,7 +250,7 @@ class Bombarder(Env):
             #     reward -= (0.05 * enemy.crates_destroyed)
         else:
             self.done = True
-            reward -= 1.0  # Penalty for player death
+            reward -= 0.7  # Penalty for player death
 
         # # Update rewards for enemies
         # for enemy in self.enemy_list:
@@ -265,18 +270,19 @@ class Bombarder(Env):
 
         # Update game state
         updated_state = deepcopy(self.state)
-        updated_state[self.player.pos_x // 4][self.player.pos_y // 4] = 5
+        # Add player position to state
+        updated_state[self.player.pos_x // 4][self.player.pos_y // 4] = 4
         for explosion in self.explosions:
             updated_state[explosion.sourceX][explosion.sourceY] = 3
 
-        return np.array(updated_state).flatten(), reward, self.done, False, info
+        return np.array(updated_state), reward, self.done, False, info
 
     def reset(self, *, seed=None, options=None):
         self.seed = seed
         self.options = options
         info = {}
         self.__init__(render_mode=self.render_mode)
-        return np.array(self.state).flatten(), info
+        return np.array(self.state), info
 
     def render(self):
         self.surface.fill(BACKGROUND_COLOR)
