@@ -45,11 +45,12 @@ if __name__ == "__main__":
     num_envs = 16
     envs = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
-    save_freq = 100000
-    save_path = './models_bomberman/'
+    save_freq = 50000
+    save_path = './models_bomberman5/'
     callback = SaveOnBestTrainingRewardCallback(
         save_freq, save_path)
-    model = PPO("MlpPolicy", envs, verbose=2, batch_size=128)
+    model = PPO("MlpPolicy", envs, verbose=2,
+                batch_size=128)
     model.learn(total_timesteps=10000000, progress_bar=True,
                 callback=callback)
-    # model.save("ppo_bombarder2")
+    model.save("ppo_bombarder5")
