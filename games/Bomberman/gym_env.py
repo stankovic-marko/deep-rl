@@ -37,9 +37,9 @@ TILE_SIZE = int(INFO.current_h * 0.035)
 WINDOW_SIZE = (13 * TILE_SIZE, 13 * TILE_SIZE)
 CLOCK = None
 PLAYER_ALG = Algorithm.PLAYER
-ENEMY_1_ALG = Algorithm.DIJKSTRA
+ENEMY_1_ALG = Algorithm.DFS
 ENEMY_2_ALG = Algorithm.DFS
-ENEMY_3_ALG = Algorithm.DIJKSTRA
+ENEMY_3_ALG = Algorithm.DFS
 SHOW_PATH = False
 SURFACE = pygame.display.set_mode(WINDOW_SIZE)
 FPSCLOCK = pygame.time.Clock()
@@ -140,7 +140,7 @@ class Bombarder(Env):
         self.state = [row[:] for row in GRID_BASE]
 
         self.observation_space = spaces.Box(
-            0, 4, shape=(13, 13), dtype=np.int64)
+            0, 6, shape=(13, 13), dtype=np.int64)
         self.action_space = spaces.Discrete(6)
 
         generate_map(self.state)
@@ -149,6 +149,10 @@ class Bombarder(Env):
         pygame.event.pump()
         info = {}
         reward = 0.0
+
+        # Update bombs
+        dt = FPSCLOCK.tick(FPS)
+        self.update_bombs(dt)
 
         standing = True
         if action != 5:
@@ -171,8 +175,12 @@ class Bombarder(Env):
                 bomb.pos_y-py)**2)
             if distance > bomb.range:
                 continue
-            if bomb.pos_x == px or bomb.pos_y == py:
-                reward -= 0.5  # Punish for standing on bomb path
+
+            if [px, py] in bomb.sectors:
+                reward -= 0.025
+
+            # if bomb.pos_x == px or bomb.pos_y == py:
+            #     reward -= 0.5  # Punish for standing on bomb path
             # else:
             #     if standing:
             #         reward += 0.2  # Reward for standing on safety near bomb
@@ -186,7 +194,7 @@ class Bombarder(Env):
             if distance > explosion.range:
                 continue
             if explosion.sourceX == px or explosion.sourceY == py:
-                reward -= 0.5  # Punish for staning on explosion path
+                reward -= 0.025  # Punish for staning on explosion path
             # else:
             #     if standing:
             #         reward += 0.2  # Reward for standing on safety near explosion
@@ -232,7 +240,15 @@ class Bombarder(Env):
 
             for bomb in self.bombs:
                 if isinstance(bomb.bomber, Player):
-                    reward += 0.025  # Small reward for each bomb placed
+                    unique_sectors = list(set(tuple(sector)
+                                          for sector in bomb.sectors))
+                    unique_sectors = [list(sector)
+                                      for sector in unique_sectors]
+                    for sector in unique_sectors:
+                        sx = sector[0]
+                        sy = sector[1]
+                        if self.state[sx][sy] == 2 or self.state[sx][sy] == 5:
+                            reward += 0.025  # Small reward for each bomb placed if its sectors contain enemy or crate
 
             if movement:
                 reward += 0.01  # Small reward for moving
@@ -244,13 +260,13 @@ class Bombarder(Env):
             reward += (0.25 * self.player.kills)
 
             # Reward for destroying crates
-            reward += (0.02 * self.player.crates_destroyed)
+            reward += (0.03 * self.player.crates_destroyed)
             # Punish if enemies are faster at destoying crates
             # for enemy in self.enemy_list:
             #     reward -= (0.05 * enemy.crates_destroyed)
         else:
             self.done = True
-            reward -= 0.7  # Penalty for player death
+            reward -= 0.3  # Penalty for player death
 
         # # Update rewards for enemies
         # for enemy in self.enemy_list:
@@ -264,16 +280,16 @@ class Bombarder(Env):
         if self.render_mode == "human":
             self.render()
 
-        # Update bombs
-        dt = FPSCLOCK.tick(FPS)
-        self.update_bombs(dt)
-
         # Update game state
         updated_state = deepcopy(self.state)
         # Add player position to state
         updated_state[self.player.pos_x // 4][self.player.pos_y // 4] = 4
         for explosion in self.explosions:
             updated_state[explosion.sourceX][explosion.sourceY] = 3
+        for enemy in self.enemy_list:
+            updated_state[enemy.pos_x//4][enemy.pos_y//4] = 5
+        for power_up in self.power_ups:
+            updated_state[power_up.pos_x][power_up.pos_y] = 6
 
         return np.array(updated_state), reward, self.done, False, info
 

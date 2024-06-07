@@ -8,11 +8,11 @@ env = Bombarder(render_mode="human")
 #model = PPO("MlpPolicy", env, verbose=2, batch_size=128,device='cpu')
 
 
-model = PPO.load("ppo_bombarder.zip", env=env)
+model = PPO.load("./models_bomberman6/model_new_obs100000_steps", env=env)
 vec_env = model.get_env()
 obs = vec_env.reset()
 while True:
-    action, _states = model.predict(obs, deterministic=True)
+    action, _states = model.predict(obs, deterministic=False)
     obs, reward, done, info = vec_env.step(action)
     print(action, reward)
     #print(obs, reward)
