@@ -263,7 +263,7 @@ class Bombarder(Env):
             #reward += (0.25 * self.player.kills)
 
             # Reward for destroying crates
-            #reward += (0.03 * self.player.crates_destroyed)
+            reward += (0.03 * self.player.crates_destroyed)
             # Punish if enemies are faster at destoying crates
             # for enemy in self.enemy_list:
             #     reward -= (0.05 * enemy.crates_destroyed)
