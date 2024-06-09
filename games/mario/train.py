@@ -27,7 +27,7 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Flatten(),
-            nn.Linear(64 * 3 * 3, features_dim),
+            nn.Linear(64, features_dim),
             nn.ReLU()
 
 
@@ -100,8 +100,8 @@ class LearningCallback(BaseCallback):
         # If first environment is done
         if self.locals['dones'][0]:
             timestep = self.num_timesteps
-            print(self.locals['infos'][0])
-            score = self.locals['infos'][0].get("score")
+            print(self.locals['rewards'][0])
+            score = self.locals['infos'][0].get("rewards")
             # Log timestep and score
             self.csv_writer.writerow([timestep, score])
             self.csv_file.flush()

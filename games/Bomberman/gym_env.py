@@ -15,7 +15,7 @@ from enemy import Enemy
 from enums.algorithm import Algorithm
 from power_up import PowerUp
 
-FPS = 30
+FPS = 15
 BACKGROUND_COLOR = (107, 142, 35)
 GRID_BASE = [[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
              [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
@@ -150,6 +150,7 @@ class Bombarder(Env):
         pygame.event.pump()
         reward = 0.0
         won = 0
+        self.steps += 1
 
         # Update bombs
         dt = FPSCLOCK.tick(FPS)
@@ -166,39 +167,6 @@ class Bombarder(Env):
 
         px = self.player.pos_x//self.player.TILE_SIZE
         py = self.player.pos_y//self.player.TILE_SIZE
-        # Punish if trapped
-        # if self.state[px - 1][py] != 0 and self.state[px + 1][py] != 0 and self.state[px][py - 1] != 0 and self.state[px][py + 1] != 0:
-        #     reward -= 0.2
-
-        # Bomb vicinity
-        # for bomb in self.bombs:
-        #     distance = math.sqrt((bomb.pos_x-px)**2+(
-        #         bomb.pos_y-py)**2)
-        #     if distance > bomb.range:
-        #         continue
-
-        #     if [px, py] in bomb.sectors:
-        #         reward -= 0.025
-
-        # if bomb.pos_x == px or bomb.pos_y == py:
-        #     reward -= 0.5  # Punish for standing on bomb path
-        # else:
-        #     if standing:
-        #         reward += 0.2  # Reward for standing on safety near bomb
-        # if bomb.pos_x == px and bomb.pos_y == py:
-        #     reward -= 1  # Punish for standing on top of the bomb
-
-        # Explosion vicinity
-        # for explosion in self.explosions:
-        #     distance = math.sqrt((explosion.sourceX-px)**2+(
-        #         explosion.sourceY-py)**2)
-        #     if distance > explosion.range:
-        #         continue
-        #     if explosion.sourceX == px or explosion.sourceY == py:
-        #         reward -= 0.025  # Punish for staning on explosion path
-        # else:
-        #     if standing:
-        #         reward += 0.2  # Reward for standing on safety near explosion
 
         # Handle player actions if the player is alive
         if self.player.life:
@@ -206,7 +174,7 @@ class Bombarder(Env):
             enemies_dead = all([not en.life for en in self.enemy_list])
             if enemies_dead:
                 self.done = True
-                reward += 0.3
+                reward += 1
                 won = 1
 
             movement = False
@@ -237,47 +205,83 @@ class Bombarder(Env):
 
             self.player.direction = direction
 
+            # Punish if trapped
+            # if self.state[px - 1][py] != 0 and self.state[px + 1][py] != 0 and self.state[px][py - 1] != 0 and self.state[px][py + 1] != 0:
+            #     reward -= 0.2
+
+            # Bomb vicinity
+            for bomb in self.bombs:
+                distance = math.sqrt((bomb.pos_x-px)**2+(
+                    bomb.pos_y-py)**2)
+                if distance > bomb.range:
+                    continue
+
+                if [px, py] in bomb.sectors:
+                    reward -= 0.000666
+                else:
+                    reward += 0.002  # Reward for standing on safety near bomb
+
+            # if bomb.pos_x == px or bomb.pos_y == py:
+            #     reward -= 0.5  # Punish for standing on bomb path
+            # else:
+            #     if standing:
+            #         reward += 0.2  # Reward for standing on safety near bomb
+            # if bomb.pos_x == px and bomb.pos_y == py:
+            #     reward -= 1  # Punish for standing on top of the bomb
+
+            # Explosion vicinity
+            for explosion in self.explosions:
+                distance = math.sqrt((explosion.sourceX-px)**2+(
+                    explosion.sourceY-py)**2)
+                if distance > explosion.range:
+                    continue
+                if [px, py] in explosion.sectors:
+                    reward -= 0.000666  # Punish for staning on explosion path
+                else:
+                    reward += 0.002  # Reward for standing on safety near explosion
+
             # Reward for placing all the bombs
             # if self.player.bomb_limit == 0:
             #     reward += 0.05
 
-            for bomb in self.bombs:
-                if isinstance(bomb.bomber, Player):
-                    unique_sectors = list(set(tuple(sector)
-                                          for sector in bomb.sectors))
-                    unique_sectors = [list(sector)
-                                      for sector in unique_sectors]
-                    for sector in unique_sectors:
-                        sx = sector[0]
-                        sy = sector[1]
-                        if self.state[sx][sy] == 2 or self.state[sx][sy] == 5:
-                            reward += 0.05  # Small reward for each bomb placed if its sectors contain enemy or crate
-
-            # if movement:
-            #    reward += 0.01  # Small reward for moving
+            # for bomb in self.bombs:
+            #     if isinstance(bomb.bomber, Player):
+            #         unique_sectors = list(set(tuple(sector)
+            #                               for sector in bomb.sectors))
+            #         unique_sectors = [list(sector)
+            #                           for sector in unique_sectors]
+            #         for sector in unique_sectors:
+            #             sx = sector[0]
+            #             sy = sector[1]
+            #             if self.state[sx][sy] == 2 or self.state[sx][sy] == 5:
+            #                 reward += 0.05  # Small reward for each bomb placed if its sectors contain enemy or crate
 
             # Additional rewards or penalties based on power-ups and other factors
             #reward += self.player.num_power_ups * 0.05
 
             # Reward for killing each enemy
-            #reward += (0.25 * self.player.kills)
+            reward += (1 * self.player.kills)
 
             # Reward for destroying crates
-            reward += (0.03 * self.player.crates_destroyed)
+            reward += (0.1 * self.player.crates_destroyed)
             # Punish if enemies are faster at destoying crates
             # for enemy in self.enemy_list:
             #     reward -= (0.05 * enemy.crates_destroyed)
             #reward -= self.steps * 0.00005
+
+            # # Update rewards for enemies
+            # for enemy in self.enemy_list:
+            #    if not enemy.life:
+            #        reward += 1  # Reward for each enemy killed
+            #     else:
+            #         reward -= 0.01  # Small penalty for each enemy still alive
+
+            # Iteration penalty
+            reward -= 0.001 * self.steps
+
         else:
             self.done = True
-            reward -= 0.3  # Penalty for player death
-
-        # # Update rewards for enemies
-        # for enemy in self.enemy_list:
-        #     if not enemy.life:
-        #         reward += 0.5  # Reward for each enemy killed
-        #     else:
-        #         reward -= 0.01  # Small penalty for each enemy still alive
+            reward = -0.5  # Penalty for player death
 
         self.cumulative_reward = reward
 
@@ -295,7 +299,8 @@ class Bombarder(Env):
         for power_up in self.power_ups:
             updated_state[power_up.pos_x][power_up.pos_y] = 6
 
-        info = {"score": self.player.crates_destroyed, "won": won}
+        info = {"score": self.player.crates_destroyed,
+                "won": won, "steps_alive": self.steps}
 
         return np.array(updated_state), reward, self.done, False, info
 

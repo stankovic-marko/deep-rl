@@ -8,7 +8,7 @@ env = Bombarder(render_mode="human")
 #model = PPO("MlpPolicy", env, verbose=2, batch_size=128,device='cpu')
 
 
-model = PPO.load("./models_bomberman6/model_new_obs100000_steps", env=env)
+model = PPO.load("./models_bomberman_hal/model_new_obs60000_steps", env=env)
 vec_env = model.get_env()
 obs = vec_env.reset()
 while True:

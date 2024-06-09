@@ -24,7 +24,7 @@ class LearningCallback(BaseCallback):
         self.csv_file = open(os.path.join(
             self.logs_path, self.log_filename), 'w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(['Timestep', 'Score', 'Won'])
+        self.csv_writer.writerow(['Timestep', 'Score', 'Won', 'Steps Alive'])
 
     def _init_callback(self) -> None:
         # Create folder if needed
@@ -38,8 +38,9 @@ class LearningCallback(BaseCallback):
             timestep = self.num_timesteps
             score = self.locals['infos'][0].get("score")
             won = self.locals['infos'][0].get("won")
+            steps_alive = self.locals['infos'][0].get("steps_alive")
             # Log timestep and score
-            self.csv_writer.writerow([timestep, score, won])
+            self.csv_writer.writerow([timestep, score, won, steps_alive])
             self.csv_file.flush()
 
         if self.n_calls - self.last_saved >= self.save_freq:
@@ -60,14 +61,14 @@ def make_env():
 
 if __name__ == "__main__":
     # Number of environments to run in parallel
-    num_envs = 16
+    num_envs = 8
     envs = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     save_freq = 30000
-    save_path = './models_bomberman9/'
+    save_path = './models_bomberman_hal/'
     callback = LearningCallback(
         save_freq, save_path)
     model = PPO("MlpPolicy", envs, verbose=2, batch_size=512)
     model.learn(total_timesteps=10000000, progress_bar=True,
                 callback=callback)
-    model.save("ppo_bombarder9")
+    model.save("ppo_bombarder_hal")
