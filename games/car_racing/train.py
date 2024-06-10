@@ -25,7 +25,7 @@ class CustomCNN(BaseFeaturesExtractor):
             nn.Conv2d(16, 32, kernel_size=8, stride=2, padding=0),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(32 * 6 * 6, 256),
+            nn.Linear(9248, 256),
             nn.ReLU(),
             nn.Linear(256, 5)
 
@@ -99,11 +99,11 @@ class LearningCallback(BaseCallback):
         # If first environment is done
         if self.locals['dones'][0]:
             timestep = self.num_timesteps
-            print(self.locals['infos'][0])
-            # score = self.locals['infos'][0].get("rewards")
-            # # Log timestep and score
-            # self.csv_writer.writerow([timestep, score])
-            # self.csv_file.flush()
+            # print(self.locals['infos'][0])
+            score = self.locals['rewards'][0]
+            # Log timestep and score
+            self.csv_writer.writerow([timestep, score])
+            self.csv_file.flush()
 
         if self.n_calls - self.last_saved >= self.save_freq:
             model_path = os.path.join(
@@ -117,21 +117,21 @@ class LearningCallback(BaseCallback):
 
 def make_env():
     def _init():
-        return gymnasium.make('CarRacing-v1', render_mode='human', continuous=False)
+        return gymnasium.make('CarRacing-v2', render_mode='human', continuous=False)
     return _init
 
 
 if __name__ == "__main__":
     # Number of environments to run in parallel
-    num_envs = 4
+    num_envs = 16
     envs = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     save_freq = 100000
-    save_path = './car_racing/models'
+    save_path = './car_racing/models_second'
     callback = LearningCallback(
         save_freq, save_path)
     model = PPO("CnnPolicy", envs, verbose=2,
-                batch_size=128, policy_kwargs=policy_kwargs)
+                batch_size=128, policy_kwargs=policy_kwargs, tensorboard_log="./tensorboard/")
     model.learn(total_timesteps=10000000, progress_bar=True,
-                callback=callback)
+                callback=callback, tb_log_name="second_try")
     # model.save("ppo_bombarder2")
