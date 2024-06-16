@@ -29,16 +29,34 @@ class LearningCallback(BaseCallback):
         self.csv_file = open(os.path.join(
             self.logs_path, self.log_filename), 'w', newline='')
         self.csv_writer = csv.writer(self.csv_file)
-        self.csv_writer.writerow(['Timestep', 'Score'])
+        self.csv_writer.writerow(['Timestep', 'Max', 'Avg'])
 
     def _on_step(self) -> bool:
         # If first environment is done
-        if self.locals['dones'][0]:
+        envs = {}
+        for i, d in enumerate(self.locals["dones"]):
+            if d:
+                score = self.locals['infos'][i].get("score")
+                envs[i] = score
+        sum = 0.0
+        max = 0.0
+        avg = 0.0
+        if len(envs) > 0:
+            for i in envs:
+                sum += envs[i]
+                if envs[i] > max:
+                    max = envs[i]
+            avg = sum / len(envs)
             timestep = self.num_timesteps
-            score = self.locals['infos'][0].get("score")
-            # Log timestep and score
-            self.csv_writer.writerow([timestep, score])
+            self.csv_writer.writerow([timestep, max, avg])
             self.csv_file.flush()
+
+        # if self.locals['dones'][0]:
+        #     timestep = self.num_timesteps
+        #     score = self.locals['infos'][0].get("score")
+        #     # Log timestep and score
+        #     self.csv_writer.writerow([timestep, score])
+        #     self.csv_file.flush()
 
         if self.n_calls - self.last_saved >= self.save_freq:
             model_path = os.path.join(
@@ -58,14 +76,14 @@ def make_env():
 
 if __name__ == "__main__":
     # Number of environments to run in parallel
-    num_envs = 16
+    num_envs = 20
     envs = SubprocVecEnv([make_env() for _ in range(num_envs)])
 
     save_freq = 100000
     save_path = './models_flappy/'
-    logs_path = "./logs/"
+    logs_path = "./logs_third/"
     callback = LearningCallback(
-        save_freq, save_path)
+        save_freq, save_path, logs_path=logs_path)
     model = PPO("MlpPolicy", envs, verbose=2, batch_size=128)
     model.learn(total_timesteps=10000000, progress_bar=True,
                 callback=callback)

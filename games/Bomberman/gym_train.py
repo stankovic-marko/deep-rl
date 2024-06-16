@@ -6,6 +6,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import SubprocVecEnv
 import gymnasium as gym
 import csv
+import torch as th
+import torch.nn as nn
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 
 class LearningCallback(BaseCallback):
@@ -53,6 +56,46 @@ class LearningCallback(BaseCallback):
         return True
 
 
+class CustomCNN(BaseFeaturesExtractor):
+    def __init__(self, observation_space, features_dim=256):
+        super(CustomCNN, self).__init__(observation_space, features_dim)
+        # Extract dimensions from observation space
+        n_input_channels = observation_space.shape[0]
+        print(
+            observation_space.shape[0], observation_space.shape[1], observation_space.shape[2])
+
+        self.cnn = nn.Sequential(
+            nn.Conv2d(n_input_channels, 32,
+                      kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.ReLU(),
+            nn.Flatten()
+        )
+
+        # Compute the size of the output of the last convolutional layer
+        with th.no_grad():
+            n_flatten = self.cnn(th.as_tensor(
+                observation_space.sample()[None]).float()).shape[1]
+
+        # Define the final fully connected layer
+        self.linear = nn.Sequential(
+            nn.Linear(n_flatten, features_dim),
+            nn.ReLU()
+        )
+
+    def forward(self, observations):
+        return self.linear(self.cnn(observations))
+
+
+policy_kwargs = dict(
+    features_extractor_class=CustomCNN,
+    features_extractor_kwargs=dict(features_dim=256),
+)
+
+
 def make_env():
     def _init():
         return Bombarder(render_mode="human")
@@ -68,7 +111,8 @@ if __name__ == "__main__":
     save_path = './models_bomberman_hal/'
     callback = LearningCallback(
         save_freq, save_path)
-    model = PPO("MlpPolicy", envs, verbose=2, batch_size=512)
+    model = PPO("CnnPolicy", envs, verbose=2,
+                batch_size=512, policy_kwargs=policy_kwargs)
     model.learn(total_timesteps=10000000, progress_bar=True,
                 callback=callback)
     model.save("ppo_bombarder_hal")
